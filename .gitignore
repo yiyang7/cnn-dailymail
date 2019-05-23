@@ -2,4 +2,5 @@ tore
 .idea/
 __pycache__
 .texpadtmp/
+tokenized_AskReddit_story/
 AskReddit_story/

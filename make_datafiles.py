@@ -25,12 +25,12 @@ SENTENCE_END = '</s>'
 # num_expected_cnn_stories = 92579
 # num_expected_dm_stories = 219506
 
-# VOCAB_SIZE = 200000
-# CHUNK_SIZE = 1000 # num examples per chunk, for the chunked data
+VOCAB_SIZE = 200000
+CHUNK_SIZE = 1000 # num examples per chunk, for the chunked data
 
 
-def chunk_file(set_name):
-  in_file = 'finished_files/%s.bin' % set_name
+def chunk_file(chunks_dir, finished_files_dir, set_name):
+  in_file = finished_files_dir + '/%s.bin' % set_name
   reader = open(in_file, "rb")
   chunk = 0
   finished = False
@@ -49,16 +49,17 @@ def chunk_file(set_name):
       chunk += 1
 
 
-def chunk_all():
+def chunk_all(chunks_dir, finished_files_dir):
   # Make a dir to hold the chunks
   if not os.path.isdir(chunks_dir):
     os.mkdir(chunks_dir)
   # Chunk the data
   for set_name in ['train', 'val', 'test']:
     print "Splitting %s data into chunks..." % set_name
-    chunk_file(set_name)
+    chunk_file(chunks_dir, finished_files_dir, set_name)
   print "Saved chunked data in %s" % chunks_dir
 
+# export CLASSPATH=/home/ubuntu/cs224u/cnn-dailymail/stanford-corenlp-full-2018-10-05/stanford-corenlp-3.9.2.jar
 
 def tokenize_stories(stories_dir, tokenized_stories_dir):
   """Maps a whole directory of .story files to a tokenized version using Stanford CoreNLP Tokenizer"""
@@ -143,35 +144,42 @@ def get_art_abs(story_file):
   return article, abstract
 
 
-def write_to_bin(url_file, out_file, makevocab=False):
+def write_to_bin(stories_dir, tokenized_stories_dir, finished_files_dir, out_file, flag, makevocab=False):
   """Reads the tokenized .story files corresponding to the urls listed in the url_file and writes them to a out_file."""
-  print "Making bin file for URLs listed in %s..." % url_file
-#   url_list = read_text_file(url_file)
-#   url_hashes = get_url_hashes(url_list)
-
-  story_fnames = [s+".story" for s in url_hashes]
+  
+  story_f = None
+  if flag == "train":
+    story_f = open("AskReddittrainlist.txt","r")
+  elif flag == "val":
+    story_f = open("AskRedditdevlist.txt","r")
+  elif flag == "test":
+    story_f = open("AskReddittestlist.txt","r")
+    
+  story_fnames = story_f.readlines()
   num_stories = len(story_fnames)
-
+  for i in range(num_stories):
+    story_fnames[i] = story_fnames[i].strip()
+#   print "story_fnames: ", len(story_fnames)
+#   print story_fnames[:10]
+  
   if makevocab:
     vocab_counter = collections.Counter()
 
   with open(out_file, 'wb') as writer:
     for idx,s in enumerate(story_fnames):
-      if idx % 1000 == 0:
+      if idx % 10000 == 0:
         print "Writing story %i of %i; %.2f percent done" % (idx, num_stories, float(idx)*100.0/float(num_stories))
 
       # Look in the tokenized story dirs to find the .story file corresponding to this url
-      if os.path.isfile(os.path.join(cnn_tokenized_stories_dir, s)):
-        story_file = os.path.join(cnn_tokenized_stories_dir, s)
-      elif os.path.isfile(os.path.join(dm_tokenized_stories_dir, s)):
-        story_file = os.path.join(dm_tokenized_stories_dir, s)
+      if os.path.isfile(os.path.join(tokenized_stories_dir, s)):
+        story_file = os.path.join(tokenized_stories_dir, s)
       else:
-        print "Error: Couldn't find tokenized story file %s in either tokenized story directories %s and %s. Was there an error during tokenization?" % (s, cnn_tokenized_stories_dir, dm_tokenized_stories_dir)
+        print "Error: Couldn't find tokenized story file %s in either tokenized story directories %s. Was there an error during tokenization?" % (s, tokenized_stories_dir)
         # Check again if tokenized stories directories contain correct number of files
-        print "Checking that the tokenized stories directories %s and %s contain correct number of files..." % (cnn_tokenized_stories_dir, dm_tokenized_stories_dir)
-        check_num_stories(cnn_tokenized_stories_dir, num_expected_cnn_stories)
-        check_num_stories(dm_tokenized_stories_dir, num_expected_dm_stories)
-        raise Exception("Tokenized stories directories %s and %s contain correct number of files but story file %s found in neither." % (cnn_tokenized_stories_dir, dm_tokenized_stories_dir, s))
+        print "Checking that the tokenized stories directories %s contain correct number of files..." % (tokenized_stories_dir)
+#         check_num_stories(cnn_tokenized_stories_dir, num_expected_cnn_stories)
+#         check_num_stories(dm_tokenized_stories_dir, num_expected_dm_stories)
+        raise Exception("Tokenized stories directories %s contain correct number of files but story file %s found in neither." % (tokenized_stories_dir, s))
 
       # Get the strings to write to .bin file
       article, abstract = get_art_abs(story_file)
@@ -231,16 +239,16 @@ if __name__ == '__main__':
 #   check_num_stories(dm_stories_dir, num_expected_dm_stories)
 
   # Create some new directories
-#   if not os.path.exists(tokenized_stories_dir): os.makedirs(tokenized_stories_dir)
-#   if not os.path.exists(finished_files_dir): os.makedirs(finished_files_dir)
+  if not os.path.exists(tokenized_stories_dir): os.makedirs(tokenized_stories_dir)
+  if not os.path.exists(finished_files_dir): os.makedirs(finished_files_dir)
 
   # Run stanford tokenizer on both stories dirs, outputting to tokenized stories directories
 #   tokenize_stories(stories_dir, tokenized_stories_dir)
 
   # Read the tokenized stories, do a little postprocessing then write to bin files
-#   write_to_bin( os.path.join(finished_files_dir, "test.bin"))
-#   write_to_bin( os.path.join(finished_files_dir, "val.bin"))
-#   write_to_bin( os.path.join(finished_files_dir, "train.bin"), makevocab=True)
+#   write_to_bin(stories_dir, tokenized_stories_dir, os.path.join(finished_files_dir, "test.bin"), "test")
+#   write_to_bin(stories_dir, tokenized_stories_dir, os.path.join(finished_files_dir, "val.bin"), "val")
+#   write_to_bin(stories_dir, tokenized_stories_dir, finished_files_dir, os.path.join(finished_files_dir, "train.bin"), "train", makevocab=True)
 
   # Chunk the data. This splits each of train.bin, val.bin and test.bin into smaller chunks, each containing e.g. 1000 examples, and saves them in finished_files/chunks
-#   chunk_all()
+  chunk_all(chunks_dir, finished_files_dir)
